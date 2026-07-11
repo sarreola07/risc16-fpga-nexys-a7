@@ -1,4 +1,4 @@
-# EE 5193 RISC Project — Sergio Arreola (Summer 2026)
+# EE 5193 RISC Project — Sergio Arreola
 
 A multi-cycle 16-bit RISC processor for the Digilent Nexys A7-100T
 (Artix-7 XC7A100T-1CSG324C), built for EE 5193 FPGA and HDL at UTSA.
