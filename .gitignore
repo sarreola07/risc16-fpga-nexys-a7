@@ -17,3 +17,6 @@ vivado_project/
 # OS
 Thumbs.db
 Desktop.ini
+
+# Word temp/lock files
+~$*
