@@ -61,7 +61,7 @@ display once the program has finished:
 \* The handout gives `0110_0010_0111_0000` for this instruction, whose
 destination field decodes to r2, not r3. That contradicts both the mnemonic
 and the following XOR, which reads r3. I use the corrected encoding here;
-Section 9.1 describes how I found the discrepancy in simulation.
+Section 10.1 describes how I found the discrepancy in simulation.
 
 The deliverables are the Verilog modules, a block diagram, ASM-D charts, a
 controller output table per opcode, simulation results, and this report.
@@ -106,7 +106,7 @@ the four-step model stays exact. Vivado infers distributed (LUT) RAM for
 this style, which costs a few hundred LUTs at 256 × 16 — cheap on an
 XC7A100T. My first version used a registered read that maps to block RAM,
 and the one-cycle read latency quietly broke the four-step model; Section
-9.2 covers that bug and why I settled on distributed RAM.
+10.2 covers that bug and why I settled on distributed RAM.
 
 Initial contents (the ten instructions, the HALT, and the operands 25 and 35
 at 201/202) are loaded from `program.mem` with `$readmemb`, so the same
@@ -211,7 +211,7 @@ architectural rate) — rather than a divided clock. Every sequential element
 in the core (PC, IR, register file write, memory write, FSM state) qualifies
 its update with `en`, while the display logic runs at the full 100 MHz.
 My first attempt used a divided clock and turned into a two-clock-domain
-design with CDC warnings; Section 9.5 explains the switch. At 1 MHz the
+design with CDC warnings; Section 10.5 explains the switch. At 1 MHz the
 program finishes in about 44 µs — instant to the eye, but the rate is
 trivially adjustable if I ever want to single-step with a slower enable.
 
@@ -1408,10 +1408,69 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 I ran the self-checking testbench (`risc_tb.v`) as a Vivado behavioral
 simulation with the clock enable tied high, so each FSM state lasts one
 10 ns clock. The whole program — eleven fetch-decode-execute-update
-sequences counting the HALT — completes in under 500 ns. The testbench
-waits for `done`, then compares every result register and the three output
-memory locations against the hand calculation from Section 3.6. Console
-output from the passing run:
+sequences counting the HALT — completes in 475 ns. The testbench waits for
+`done`, then compares every result register and the three output memory
+locations against the hand calculation from Section 3.6. Three captures
+tell the story: a full-program overview, a close-up of four back-to-back
+instructions mid-program, and the testbench console output.
+
+### 8.1 Full-program overview
+
+> **[INSERT WAVEFORM SCREENSHOT: full run 0–475 ns — signals: clk, reset,
+> done, errors, state, pc_out, ir_out, mem_addr, dout, we, rp_addr,
+> rp_data, rq_data, y, rf[5], rf[7], ram[203], ram[204], ram[205]]**
+
+One zoomed-out frame shows the entire execution. `state` ticks through
+0-1-2-3 (Fetch-Decode-Execute-UpdatePC) eleven times and parks at 4 (Halt);
+`pc_out` staircases `00` through `0a` and freezes; and `ir_out` walks
+through exactly the program encodings — `95c9, 96ca, 0756, a7cb, 88fa,
+1485, a4cc, 6370, 4234, a2cd` and finally `f000`, the HALT. `done` rises at
+475 ns and the testbench's `errors` counter stays zero for the whole run.
+The unified-memory address mux is directly visible in `mem_addr`: the bus
+follows the PC except during the Execute state of each load/store, where it
+flicks to `c9`, `ca`, `cb`, `cc`, and `cd` in turn — the five data
+addresses. The three `we` pulses line up exactly with `ram[203]`,
+`ram[204]`, and `ram[205]` stepping to `003c` (60), `00e1` (225), and
+`00ff` (255): the three results of the hand calculation landing in memory.
+
+Individual instructions read straight off the same plot:
+
+- During `pc_out = 00` (`LW r5, 201`), `mem_addr` jumps from `00` to `c9`
+  in Execute, `dout` presents `0019` combinationally, and `rf[5]` steps to
+  25 on the state-exit edge.
+- During `pc_out = 02` (`ADD r7, r5, r6`), the read ports show
+  `rp_data = 25` and `rq_data = 35` settled through Decode, the ALU output
+  `y` shows 60, and `rf[7]` captures it at the end of Execute.
+- During `pc_out = 03` (`SW r7, 203`), `rp_addr` swings from the rs field
+  to IR[11:8] = 7, `mem_addr` shows `cb`, `we` pulses, and `ram[203]`
+  updates — the first visible result.
+
+### 8.2 A closer look: LI → SUB → SW → SRA (180–320 ns)
+
+> **[INSERT WAVEFORM SCREENSHOT: zoom of instructions 4–7 (pc_out = 04
+> through 07), roughly 180–320 ns — same signal set]**
+
+Zooming into the middle of the run shows four consecutive instructions of
+four different classes. `LI r8, 250` (`ir_out = 88fa`) writes the
+zero-extended immediate; the value is visible one instruction later when
+`SUB r4, r8, r5` reads it back as `rp_data = 250` against
+`rq_data = 25`. The SUB also demonstrates the controller's per-state output
+discipline in a way I did not anticipate but ended up liking: the ALU
+output `y` briefly shows 275 (= 250 + 25) during Fetch, Decode, and
+UpdatePC, because `alu_op` idles at its default ADD outside the Execute
+state, and flips to 225 exactly when `state = 2`. Nothing downstream
+samples the ALU outside Execute, so the transient is harmless — and it is
+visual proof that the Execute-only strobes in the Section 6 table are doing
+their job. `SW r4, 204` then drives `mem_addr = cc` with a `we` pulse, and
+`dout` momentarily shows `0000` — the *old* contents of ram[204] appearing
+on the combinational read port just before the write lands — after which
+`ram[204]` steps to `00e1`. Finally `SRA r3, r7` starts at the right edge:
+`rp_data = 60` in, `y = 30` out, the one-bit arithmetic shift.
+
+### 8.3 Testbench console output
+
+The testbench prints one PASS/FAIL line per checked register and memory
+location. Output of the passing run:
 
 ```
 === EE 5193 RISC testbench ===
@@ -1429,86 +1488,36 @@ PASS  mem[205] = 255 (0xff)
 === ALL CHECKS PASSED ===
 ```
 
-### 8.1 A load, end to end: `LW r5, 201` (instruction 0)
+> **[INSERT SCREENSHOT: Vivado Tcl console showing the PASS lines and
+> "=== ALL CHECKS PASSED ===" after run all]**
 
-> **[INSERT WAVEFORM SCREENSHOT: LW r5,201 fetch-to-writeback — signals:
-> clk, state, pc_out, mem_addr, mem_dout, ir_out, rf_wdata, rf_we,
-> u_rf.rf[5]]**
+## 9. Board Demonstration
 
-This is the first instruction out of reset, and the waveform shows all four
-steps in order:
+Bring-up procedure: generate the bitstream, program the board from the
+Hardware Manager, and press BTNC once to reset. The program needs about
+44 µs at the 1 MHz architectural rate, so to the eye the results are
+instant: `3C  E1  FF` across the display — mem[203] = 60, mem[204] = 225,
+and mem[205] = 255 in hexadecimal, with the two separator digits dark and
+LED0 lit to indicate the HALT state was reached. (The green DONE LED near
+the center of the board only means the FPGA is configured; LED0 is the
+processor's `done` flag.)
 
-- **Fetch** (`state = 0`): `mem_addr_sel = 0`, so `mem_addr` equals
-  `pc_out = 0`. The memory read is combinational, so `mem_dout` already
-  shows the instruction word `0x95C9` during this state. `ir_ld` is high;
-  on the clock edge leaving Fetch, `ir_out` steps from `0x0000` to
-  `0x95C9`.
-- **Decode** (`state = 1`): no control strobe is active. You can watch the
-  decoded fields settle: the controller sees opcode `1001`, and the register
-  file read addresses take the values rs = 12, rt = 9 (meaningless for LW —
-  they are just IR bit fields — which is exactly why nothing is write-enabled
-  in this state).
-- **Execute** (`state = 2`): `mem_addr_sel` flips to 1 and `mem_addr` jumps
-  from 0 to 201 (0xC9) — the address-mux handoff is one of the clearest
-  things in the plot. `mem_dout` shows 25 (0x0019), `rf_wdata_sel = 01`
-  routes it to `rf_wdata`, and `rf_we` is high. On the exit edge,
-  `u_rf.rf[5]` steps from 0 to 25.
-- **UpdatePC** (`state = 3`): `pc_inc` pulses and `pc_out` steps 0 → 1 on
-  the exit edge, and the FSM wraps back to Fetch with `mem_addr` now
-  following the new PC.
+> **[INSERT PHOTO: Nexys A7 running the design — display showing
+> "3C E1 FF", LED0 lit, Vivado Hardware Manager showing the device
+> programmed in the background]**
 
-### 8.2 An ALU instruction: `ADD r7, r5, r6` (instruction 2)
+Holding BTNC down holds the CPU in reset: the display shows dashes
+(`-- -- --`) and LED0 goes out, because `done` is low and the display is
+gated by it; releasing the button re-runs the program from scratch and the
+results reappear. This is the contrast shot that proves the display state
+is driven by the processor's status rather than frozen in the bitstream.
 
-> **[INSERT WAVEFORM SCREENSHOT: ADD r7,r5,r6 — signals: clk, state,
-> ir_out, rp_addr, rq_addr, rp_data, rq_data, alu_op, alu_y, rf_we,
-> u_rf.rf[7]]**
+> **[INSERT PHOTO: BTNC held down — display showing "-- -- --" with LED0
+> off (machine in reset, done low)]**
 
-By Fetch of instruction 2, r5 = 25 and r6 = 35 are already in the register
-file. After the IR captures `0x0756`, the read addresses become
-rp_addr = 5 and rq_addr = 6, and `rp_data`/`rq_data` show 25 and 35 for the
-whole Decode state — the settle time that state exists to provide. In
-Execute, `alu_op = 00` and `alu_y` shows 60 combinationally; `rf_we` is the
-only enable high, and r7 becomes 60 on the exit edge. Also visible here:
-`RF_Rp_zero` is low (25 ≠ 0) — the flag tracks port P continuously even
-though nothing consumes it for an ADD.
+## 10. Problems Encountered and How I Resolved Them
 
-### 8.3 A store and the final result writes: `SW r7, 203` and instructions 6–9
-
-> **[INSERT WAVEFORM SCREENSHOT: SW r7,203 execute — signals: clk, state,
-> ir_out, rf_rp_addr_sel, rp_addr, rp_data, mem_addr, mem_we, din,
-> u_mem.ram[203]]**
-
-The store shows the two SW-specific muxes doing their jobs at once: in
-Execute, `rf_rp_addr_sel = 1` swings `rp_addr` to IR[11:8] = 7 (instead of
-IR[7:4], which holds 12 for this word), so `rp_data` presents 60; and
-`mem_addr_sel = 1` puts 203 (0xCB) on the address bus while `mem_we` pulses.
-`ram[203]` updates to 60 on the exit edge. The same pattern repeats for
-`SW r4, 204` (225) and `SW r2, 205` (255) later in the run.
-
-> **[INSERT WAVEFORM SCREENSHOT: full-program overview — signals: clk,
-> state, pc_out, ir_out, done, u_mem.ram[203], u_mem.ram[204],
-> u_mem.ram[205]]**
-
-The overview plot is the money shot: `pc_out` staircases 0 through 10, the
-three RAM locations step to 0x3C, 0xE1, 0xFF at instructions 3, 6, and 9,
-and after the fetch of address 10 (`ir_out = 0xF000`) the state register
-enters Halt and `done` goes high and stays there. PC freezes at 10 — the
-UpdatePC step never runs for HALT, which is the intended behavior.
-
-### 8.4 On the board
-
-On hardware the sequence is: press BTNC, the display shows `-- -- --` for
-the microseconds the program needs (perceptually instant), then
-`3C  E1  FF` with LED0 lit. The dashes are only really observable if the
-clock-enable divider is slowed down, which I did once out of curiosity with
-a wider counter.
-
-> **[INSERT PHOTO: Nexys A7 board running the design — 7-segment display
-> showing "3C E1 FF", LED0 on]**
-
-## 9. Problems Encountered and How I Resolved Them
-
-### 9.1 The SRA encoding in the handout is inconsistent (found in simulation)
+### 10.1 The SRA encoding in the handout is inconsistent (found in simulation)
 
 My first full-program simulation failed exactly one check:
 `FAIL mem[205] = 225, expected 255` — the display would have shown `E1`
@@ -1520,11 +1529,12 @@ handout's SRA word `0110_0010_0111_0000` is `0010` — r2, not the r3 the
 mnemonic `SRA 3 7` claims. Since the following XOR explicitly reads r3, the
 mnemonic has to be right and the binary wrong, so I corrected the word to
 `0110_0011_0111_0000` in `program.mem` and re-ran: all checks passed. (The
-correction is flagged in the program listing in Section 2.) Good reminder that a self-checking testbench
-catches what eyeballing a waveform misses — I had scrolled past that XOR
-several times without noticing r3 was never written.
+correction is flagged in the program listing in Section 2.) Good reminder
+that a self-checking testbench catches what eyeballing a waveform misses —
+I had scrolled past that XOR several times without noticing r3 was never
+written.
 
-### 9.2 Registered-read memory broke the four-step model (everything off by one)
+### 10.2 Registered-read memory broke the four-step model (everything off by one)
 
 My first memory used the registered-read template so Vivado would infer
 block RAM. In simulation the program did nothing sensible: the first
@@ -1541,7 +1551,7 @@ a trivial fraction of an XC7A100T, and the four-state execute model stays
 exact. The lesson I'm taking away: the BRAM-vs-LUTRAM decision is not just a
 resource question, it changes the cycle-level architecture.
 
-### 9.3 Blocking assignment in the register file write port
+### 10.3 Blocking assignment in the register file write port
 
 Early on I had written the register file write as a blocking assignment
 (`rf[waddr] = wdata;`). Behavioral simulation looked fine, but it is a real
@@ -1558,7 +1568,7 @@ non-blocking assignment (`rf[waddr] <= wdata;`) made both simulations agree.
 Rule I now follow without exception: sequential logic gets non-blocking
 assignments, period.
 
-### 9.4 Seven-segment ghosting and phantom zeros
+### 10.4 Seven-segment ghosting and phantom zeros
 
 First hardware bring-up of the display showed two artifacts: faint copies of
 each digit on its neighbor ("ghosting"), and the separator digits showing
@@ -1574,7 +1584,7 @@ anodes. The fix was the `digit_en` mask, which turns the anode off entirely
 for blanked positions. That mask then turned out to be exactly what I needed
 for the two dark separator columns in the `3C  E1  FF` layout.
 
-### 9.5 Divided clock vs. clock enable
+### 10.5 Divided clock vs. clock enable
 
 To slow the CPU down I first did the obvious thing: a counter whose MSB
 toggled at ~1 MHz, used directly as the CPU clock. It worked in behavioral
@@ -1590,7 +1600,7 @@ pulse. All the cross-domain paths disappeared (there is only one domain),
 timing closed with large margin, and the CPU rate is still a one-line
 parameter change.
 
-### 9.6 `$readmemb` file not found — in synthesis but not simulation
+### 10.6 $readmemb behaves differently in simulation and synthesis
 
 Behavioral simulation loaded `program.mem` fine, but my first synthesis run
 warned that the file could not be found and happily built a memory of all
@@ -1648,7 +1658,7 @@ the same power-up state). Now holding BTNC shows `-- -- --` with LED0 off,
 and releasing it snaps to `3C E1 FF` — a much better demo, and a good
 reminder that "reset everything" is a habit, not a requirement.
 
-## 10. Conclusion
+## 11. Conclusion
 
 The processor meets the assignment as specified: every block is its own
 Verilog module, the controller takes only the IR and `RF_Rp_zero` and walks
@@ -1658,9 +1668,10 @@ program runs from the unified memory with operands 25 and 35 at locations
 7-segment display as `3C E1 FF`. The self-checking testbench verifies all
 seven result registers and all three memory results against the hand
 calculation, and the design synthesizes into a single 100 MHz clock domain
-on the Nexys A7 with no latches and no timing violations. Beyond the
+on the Nexys A7 in about 311 LUTs (under 0.5% of the XC7A100T, roughly half
+of them as distributed RAM) with no latches and timing met. Beyond the
 requirements, the exercise of giving `RF_Rp_zero` a real consumer (the JZ
 branch) and a defined stopping point (HALT) made the controller table and
 ASM-D charts feel like a complete, if small, ISA rather than a fixed-program
-sequencer — and the bugs in Section 9 taught me more about the
+sequencer — and the bugs in Section 10 taught me more about the
 simulation-to-hardware gap than the parts that worked on the first try.
