@@ -1416,9 +1416,9 @@ instructions mid-program, and the testbench console output.
 
 ### 8.1 Full-program overview
 
-> **[INSERT WAVEFORM SCREENSHOT: full run 0–475 ns — signals: clk, reset,
-> done, errors, state, pc_out, ir_out, mem_addr, dout, we, rp_addr,
-> rp_data, rq_data, y, rf[5], rf[7], ram[203], ram[204], ram[205]]**
+![Figure 8-1: Vivado waveform, full-program run 0-475 ns](figures/fig_8_1_overview.png)
+
+*Figure 8-1: Vivado waveform, full run 0-475 ns: state, pc_out, ir_out, mem_addr, we, register/ALU values, and ram[203..205].*
 
 One zoomed-out frame shows the entire execution. `state` ticks through
 0-1-2-3 (Fetch-Decode-Execute-UpdatePC) eleven times and parks at 4 (Halt);
@@ -1447,8 +1447,9 @@ Individual instructions read straight off the same plot:
 
 ### 8.2 A closer look: LI → SUB → SW → SRA (180–320 ns)
 
-> **[INSERT WAVEFORM SCREENSHOT: zoom of instructions 4–7 (pc_out = 04
-> through 07), roughly 180–320 ns — same signal set]**
+![Figure 8-2: zoom of instructions 4-7](figures/fig_8_2_zoom_li_sub_sw.png)
+
+*Figure 8-2: Vivado waveform, zoom of instructions 4-7 (pc_out = 04 through 07), 180-320 ns.*
 
 Zooming into the middle of the run shows four consecutive instructions of
 four different classes. `LI r8, 250` (`ir_out = 88fa`) writes the
@@ -1488,8 +1489,9 @@ PASS  mem[205] = 255 (0xff)
 === ALL CHECKS PASSED ===
 ```
 
-> **[INSERT SCREENSHOT: Vivado Tcl console showing the PASS lines and
-> "=== ALL CHECKS PASSED ===" after run all]**
+![Figure 8-3: testbench console output](figures/fig_8_3_console.png)
+
+*Figure 8-3: Vivado Tcl console after run all: ten PASS lines and "=== ALL CHECKS PASSED ===".*
 
 ## 9. Board Demonstration
 
@@ -1502,9 +1504,9 @@ LED0 lit to indicate the HALT state was reached. (The green DONE LED near
 the center of the board only means the FPGA is configured; LED0 is the
 processor's `done` flag.)
 
-> **[INSERT PHOTO: Nexys A7 running the design — display showing
-> "3C E1 FF", LED0 lit, Vivado Hardware Manager showing the device
-> programmed in the background]**
+![Figure 9-1: board showing 3C E1 FF](figures/fig_9_1_board_results.jpg)
+
+*Figure 9-1: Nexys A7 running the design: display showing "3C E1 FF", LED0 lit, Hardware Manager in the background.*
 
 Holding BTNC down holds the CPU in reset: the display shows dashes
 (`-- -- --`) and LED0 goes out, because `done` is low and the display is
@@ -1512,8 +1514,9 @@ gated by it; releasing the button re-runs the program from scratch and the
 results reappear. This is the contrast shot that proves the display state
 is driven by the processor's status rather than frozen in the bitstream.
 
-> **[INSERT PHOTO: BTNC held down — display showing "-- -- --" with LED0
-> off (machine in reset, done low)]**
+![Figure 9-2: BTNC held, display showing dashes](figures/fig_9_2_board_dashes.jpg)
+
+*Figure 9-2: BTNC held down: display showing "-- -- --" with LED0 off (machine in reset, done low).*
 
 ## 10. Problems Encountered and How I Resolved Them
 
