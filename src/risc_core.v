@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // risc_core.v -- datapath + controller wired together (board-independent)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

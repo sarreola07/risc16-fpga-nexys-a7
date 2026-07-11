@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // controller.v -- four-state FSM controller (Fetch / Decode / Execute / UpdatePC)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

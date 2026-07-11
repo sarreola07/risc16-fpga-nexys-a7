@@ -449,6 +449,7 @@ infer distributed RAM). The testbench is simulation-only.
 ### 7.1 `controller.v` — the FSM controller
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // controller.v -- four-state FSM controller (Fetch / Decode / Execute / UpdatePC)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -636,6 +637,7 @@ endmodule
 ### 7.2 `pc.v` — program counter
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // pc.v -- 8-bit program counter
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -674,6 +676,7 @@ endmodule
 ### 7.3 `ir.v` — instruction register
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // ir.v -- 16-bit instruction register
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -709,6 +712,7 @@ endmodule
 ### 7.4 `regfile.v` — register file with RF_Rp_zero flag
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // regfile.v -- 16 x 16-bit register file, 2 read ports / 1 write port
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -761,6 +765,7 @@ endmodule
 ### 7.5 `alu.v` — ALU (reused from earlier lab)
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // alu.v -- 16-bit ALU: ADD, SUB, XOR, SRA
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -799,6 +804,7 @@ endmodule
 ### 7.6 `memory.v` — unified 256x16 memory
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // memory.v -- unified 256 x 16-bit instruction/data memory
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -886,6 +892,7 @@ endmodule
 ### 7.8 `risc_core.v` — datapath + controller wiring
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // risc_core.v -- datapath + controller wired together (board-independent)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -1017,6 +1024,7 @@ endmodule
 ### 7.9 `sevenseg_driver.v` — 7-segment scan driver (reused from earlier lab)
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // sevenseg_driver.v -- 8-digit multiplexed 7-segment scan driver (Nexys A7)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -1121,6 +1129,7 @@ endmodule
 ### 7.10 `risc_top.v` — board top level
 
 ```verilog
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // risc_top.v -- board top level for the Nexys A7-100T
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
@@ -1400,7 +1409,7 @@ output from the passing run:
 
 ```
 === EE 5193 RISC testbench ===
---- program halted at PC = 10 after 495000 ---
+--- program halted at PC = 10 after 475000 ---
 PASS  r5 = 25
 PASS  r6 = 35
 PASS  r7 = 60

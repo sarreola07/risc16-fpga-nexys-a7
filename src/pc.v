@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // pc.v -- 8-bit program counter
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

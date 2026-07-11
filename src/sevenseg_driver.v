@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // sevenseg_driver.v -- 8-digit multiplexed 7-segment scan driver (Nexys A7)
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

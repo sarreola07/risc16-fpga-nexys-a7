@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // risc_top.v -- board top level for the Nexys A7-100T
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

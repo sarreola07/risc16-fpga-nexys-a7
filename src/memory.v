@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // memory.v -- unified 256 x 16-bit instruction/data memory
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

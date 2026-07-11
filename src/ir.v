@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // ir.v -- 16-bit instruction register
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project

@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 //-----------------------------------------------------------------------------
 // regfile.v -- 16 x 16-bit register file, 2 read ports / 1 write port
 // EE 5193 FPGA and HDL, Summer 2026 -- RISC project
