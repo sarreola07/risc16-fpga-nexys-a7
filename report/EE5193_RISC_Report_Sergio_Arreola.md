@@ -860,33 +860,24 @@ module memory #(
 endmodule
 ```
 
-### 7.7 `program.mem` — memory image (program + data)
+### 7.7 `program.mem` — memory image (program + data, data-only for synthesis)
 
 ```text
-// program.mem -- initial memory image for the EE 5193 RISC project
-// Loaded with $readmemb. Addresses are hex (@ directives), data is binary.
-//
-// Program (addresses 0..9), HALT at 10:
 @00
-1001010111001001   // 00: LW  r5, 201      r5 <- mem[201] = 25
-1001011011001010   // 01: LW  r6, 202      r6 <- mem[202] = 35
-0000011101010110   // 02: ADD r7, r5, r6   r7 <- 25 + 35  = 60
-1010011111001011   // 03: SW  r7, 203      mem[203] <- 60
-1000100011111010   // 04: LI  r8, 250      r8 <- 250
-0001010010000101   // 05: SUB r4, r8, r5   r4 <- 250 - 25 = 225
-1010010011001100   // 06: SW  r4, 204      mem[204] <- 225
-0110001101110000   // 07: SRA r3, r7       r3 <- 60 >>> 1 = 30
-                   //     NOTE: handout listed 0110_0010_0111_0000 (rd = r2),
-                   //     which contradicts the mnemonic and the following
-                   //     XOR that reads r3. Corrected rd field to 0011.
-0100001000110100   // 08: XOR r2, r3, r4   r2 <- 30 ^ 225 = 255
-1010001011001101   // 09: SW  r2, 205      mem[205] <- 255
-1111000000000000   // 10: HALT
-//
-// Data (addresses 201 = 0xC9, 202 = 0xCA):
+1001010111001001
+1001011011001010
+0000011101010110
+1010011111001011
+1000100011111010
+0001010010000101
+1010010011001100
+0110001101110000
+0100001000110100
+1010001011001101
+1111000000000000
 @C9
-0000000000011001   // 201: 25
-0000000000100011   // 202: 35
+0000000000011001
+0000000000100011
 ```
 
 ### 7.8 `risc_core.v` — datapath + controller wiring
@@ -1513,8 +1504,8 @@ where the XOR then overwrote it with 0 ^ 225 = 225. The rd field of the
 handout's SRA word `0110_0010_0111_0000` is `0010` — r2, not the r3 the
 mnemonic `SRA 3 7` claims. Since the following XOR explicitly reads r3, the
 mnemonic has to be right and the binary wrong, so I corrected the word to
-`0110_0011_0111_0000` in `program.mem` (with a comment marking the change)
-and re-ran: all checks passed. Good reminder that a self-checking testbench
+`0110_0011_0111_0000` in `program.mem` and re-ran: all checks passed. (The
+correction is flagged in the program listing in Section 2.) Good reminder that a self-checking testbench
 catches what eyeballing a waveform misses — I had scrolled past that XOR
 several times without noticing r3 was never written.
 
@@ -1600,6 +1591,18 @@ to be in the simulation fileset), so both tools resolve it through the
 project rather than the working directory. After that, both flows loaded
 the same image, and the post-synthesis functional simulation matched
 behavioral.
+
+The same lesson then repeated in a second form. My original `program.mem`
+carried a `//` comment on every line annotating the instruction it encoded;
+xsim's `$readmemb` accepts comments, but `synth_design` rejected the file
+with `[Synth 8-273] error in $readmem data: non-binary digit to $readmemb`
+and failed to synthesize the memory module — even though the very next log
+line claimed the file was "read successfully." The shipped `.mem` file is
+therefore data-only, just the `@` address directives and the 16-bit words,
+and the annotated program listing lives in Section 2 of this report
+instead. Between the path resolution and the comment parsing, my takeaway
+is to treat memory-image files as belonging to the tools, not to me: no
+comments, bare filename, registered with the project.
 
 ## 10. Conclusion
 
