@@ -1,0 +1,19 @@
+# Vivado project junk — the project is recreated from src/, sim/, constraints/
+*.jou
+*.log
+*.str
+*.xpr
+*.bit
+.Xil/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.gen/
+vivado_project/
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
