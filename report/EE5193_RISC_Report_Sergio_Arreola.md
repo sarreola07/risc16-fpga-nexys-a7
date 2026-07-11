@@ -825,7 +825,11 @@ endmodule
 // in the top level to scan mem[203..205]; the CPU never touches it.
 //
 // Initial contents come from program.mem via $readmemb: the ten demo
-// instructions plus a HALT at 0..10, and the operands 25/35 at 201/202.
+// instructions plus a HALT at 0..10, the operands 25/35 at 201/202, and
+// zeros everywhere else. The file lists all 256 words in order with no
+// @ address jumps and no comments -- Vivado synthesis's $readmemb parser
+// rejects both (it reads @ addresses as binary, unlike xsim, which
+// follows the LRM and reads them as hex). See "Problems encountered".
 //-----------------------------------------------------------------------------
 module memory #(
     parameter MEM_INIT_FILE = "program.mem"
@@ -842,11 +846,8 @@ module memory #(
 
     reg [15:0] ram [0:255];
 
-    integer i;
     initial begin
-        for (i = 0; i < 256; i = i + 1)
-            ram[i] = 16'd0;
-        $readmemb(MEM_INIT_FILE, ram);
+        $readmemb(MEM_INIT_FILE, ram);   // file covers all 256 addresses
     end
 
     always @(posedge clk) begin
@@ -860,24 +861,33 @@ module memory #(
 endmodule
 ```
 
-### 7.7 `program.mem` — memory image (program + data, data-only for synthesis)
+### 7.7 `program.mem` — memory image (annotated summary; the shipped file is 256 bare binary words — see Sec. 10.6)
 
 ```text
-@00
-1001010111001001
-1001011011001010
-0000011101010110
-1010011111001011
-1000100011111010
-0001010010000101
-1010010011001100
-0110001101110000
-0100001000110100
-1010001011001101
-1111000000000000
-@C9
-0000000000011001
-0000000000100011
+Annotated contents of src/program.mem
+=====================================
+The shipped file is 256 bare 16-bit binary words, one per line, where
+line N holds memory address N-1. No comments and no @ address jumps --
+Vivado synthesis's $readmemb parser rejects both (see report Sec. 10.6).
+All words not listed below are 0000000000000000.
+
+addr   word                official meaning
+----   ----------------    ------------------------------------------
+   0   1001010111001001    LW  r5, 201     r5  <- mem[201] = 25
+   1   1001011011001010    LW  r6, 202     r6  <- mem[202] = 35
+   2   0000011101010110    ADD r7, r5, r6  r7  <- 25 + 35  = 60
+   3   1010011111001011    SW  r7, 203     mem[203] <- 60
+   4   1000100011111010    LI  r8, 250     r8  <- 250
+   5   0001010010000101    SUB r4, r8, r5  r4  <- 250 - 25 = 225
+   6   1010010011001100    SW  r4, 204     mem[204] <- 225
+   7   0110001101110000    SRA r3, r7      r3  <- 60 >>> 1 = 30
+                           (rd field corrected from the handout's 0010;
+                            see report Sec. 10.1)
+   8   0100001000110100    XOR r2, r3, r4  r2  <- 30 ^ 225 = 255
+   9   1010001011001101    SW  r2, 205     mem[205] <- 255
+  10   1111000000000000    HALT
+ 201   0000000000011001    25   (input operand)
+ 202   0000000000100011    35   (input operand)
 ```
 
 ### 7.8 `risc_core.v` — datapath + controller wiring
@@ -1592,17 +1602,26 @@ project rather than the working directory. After that, both flows loaded
 the same image, and the post-synthesis functional simulation matched
 behavioral.
 
-The same lesson then repeated in a second form. My original `program.mem`
-carried a `//` comment on every line annotating the instruction it encoded;
-xsim's `$readmemb` accepts comments, but `synth_design` rejected the file
-with `[Synth 8-273] error in $readmem data: non-binary digit to $readmemb`
-and failed to synthesize the memory module — even though the very next log
-line claimed the file was "read successfully." The shipped `.mem` file is
-therefore data-only, just the `@` address directives and the 16-bit words,
-and the annotated program listing lives in Section 2 of this report
-instead. Between the path resolution and the comment parsing, my takeaway
-is to treat memory-image files as belonging to the tools, not to me: no
-comments, bare filename, registered with the project.
+The same lesson then repeated in a sharper form. My original `program.mem`
+used `@` address directives to place the program at 0 and the operands at
+201 (`@00` and `@C9` blocks), with a `//` comment per line annotating each
+instruction. xsim accepted all of it — the LRM says `@` addresses are
+hexadecimal regardless of the data radix, and comments are legal — but
+`synth_design` failed the memory module with `[Synth 8-273] error in
+$readmem data: non-binary digit to $readmemb`, absurdly followed one line
+later by "$readmem data file 'program.mem' is read successfully."
+Stripping the comments didn't fix it, which is what finally pointed me at
+the real offender: `@C9`. Vivado synthesis parses the `@` address of a
+`$readmemb` file in *binary*, so the hex digits C and 9 are its
+"non-binary digit" — a straight-up LRM deviation that xsim doesn't share,
+meaning the same legal file behaves differently in the two halves of one
+vendor's toolchain. Rather than fight it, I flattened the image:
+`program.mem` now lists all 256 words in address order with no `@` jumps
+and no comments, and the memory's initial block is nothing but the
+`$readmemb` call (the explicit zero-fill loop went away since the file now
+covers every address). Simulation, synthesis, and my checking script all
+agree on that one file, and the human-readable annotated listing lives in
+Section 2 and Section 7.7 of this report instead of in the file.
 
 ## 10. Conclusion
 

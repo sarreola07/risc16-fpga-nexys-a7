@@ -19,7 +19,11 @@
 // in the top level to scan mem[203..205]; the CPU never touches it.
 //
 // Initial contents come from program.mem via $readmemb: the ten demo
-// instructions plus a HALT at 0..10, and the operands 25/35 at 201/202.
+// instructions plus a HALT at 0..10, the operands 25/35 at 201/202, and
+// zeros everywhere else. The file lists all 256 words in order with no
+// @ address jumps and no comments -- Vivado synthesis's $readmemb parser
+// rejects both (it reads @ addresses as binary, unlike xsim, which
+// follows the LRM and reads them as hex). See "Problems encountered".
 //-----------------------------------------------------------------------------
 module memory #(
     parameter MEM_INIT_FILE = "program.mem"
@@ -36,11 +40,8 @@ module memory #(
 
     reg [15:0] ram [0:255];
 
-    integer i;
     initial begin
-        for (i = 0; i < 256; i = i + 1)
-            ram[i] = 16'd0;
-        $readmemb(MEM_INIT_FILE, ram);
+        $readmemb(MEM_INIT_FILE, ram);   // file covers all 256 addresses
     end
 
     always @(posedge clk) begin
