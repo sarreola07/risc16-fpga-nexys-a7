@@ -94,9 +94,11 @@ module risc_top (
                            result[1][7:0], 4'h0,
                            result[2][7:0] };
 
+    // Note: the display driver is deliberately NOT reset -- it keeps
+    // scanning while BTNC holds the CPU in reset, so the dashes are
+    // visible for as long as the button is held.
     sevenseg_driver u_disp (
         .clk       (clk),
-        .reset     (reset),
         .digits    (digits),
         .digit_en  (8'b1101_1011),   // digits 5 and 2 are blank separators
         .show_dash (~done),          // dashes until the program halts

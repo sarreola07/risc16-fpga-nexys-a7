@@ -1035,6 +1035,14 @@ endmodule
 // a per-digit blanking mask (digit_en) and a dash mode used while the CPU
 // is still running. Anodes and cathodes are both active low on the Nexys A7.
 //
+// The driver deliberately has NO reset: its outputs are a pure function of
+// the free-running scan counter and the current inputs, so the display keeps
+// scanning -- showing dashes -- while the CPU is held in reset by BTNC. My
+// first version reset the driver along with the CPU, which blanked the whole
+// display during reset and made the dash mode unobservable (see "Problems
+// encountered"). Registers carry initial values for simulation; on the FPGA
+// the GSR provides the same power-up state.
+//
 // Scan rate: the digit select comes from bits [19:17] of a free-running
 // counter at 100 MHz, so each digit is lit for 2^17 * 10 ns = 1.31 ms and
 // the full 8-digit frame refreshes at ~95 Hz -- fast enough not to flicker,
@@ -1045,7 +1053,6 @@ endmodule
 //-----------------------------------------------------------------------------
 module sevenseg_driver (
     input  wire        clk,        // 100 MHz board clock
-    input  wire        reset,      // synchronous, active high
     input  wire [31:0] digits,     // 8 hex nibbles, digit 7 = digits[31:28]
     input  wire [7:0]  digit_en,   // 1 = display this digit, 0 = blank
     input  wire        show_dash,  // 1 = enabled digits show '-'
@@ -1056,14 +1063,10 @@ module sevenseg_driver (
 
     assign dp = 1'b1;              // decimal point never used
 
-    // ---- scan counter -----------------------------------------------------
-    reg [19:0] scan_cnt;
-    always @(posedge clk) begin
-        if (reset)
-            scan_cnt <= 20'd0;
-        else
-            scan_cnt <= scan_cnt + 20'd1;
-    end
+    // ---- scan counter (free-running, never reset) --------------------------
+    reg [19:0] scan_cnt = 20'd0;
+    always @(posedge clk)
+        scan_cnt <= scan_cnt + 20'd1;
 
     wire [2:0] digit_sel = scan_cnt[19:17];
 
@@ -1109,18 +1112,18 @@ module sevenseg_driver (
     localparam [6:0] SEG_BLANK = 7'b1111111;
 
     // ---- registered outputs (anode and cathode switch together) -----------
+    initial begin
+        an  = 8'hFF;
+        seg = SEG_BLANK;
+    end
+
     always @(posedge clk) begin
-        if (reset) begin
-            an  <= 8'hFF;
-            seg <= SEG_BLANK;
+        if (digit_en[digit_sel]) begin
+            an  <= ~(8'd1 << digit_sel);
+            seg <= show_dash ? SEG_DASH : hex_seg;
         end else begin
-            if (digit_en[digit_sel]) begin
-                an  <= ~(8'd1 << digit_sel);
-                seg <= show_dash ? SEG_DASH : hex_seg;
-            end else begin
-                an  <= 8'hFF;                  // blank digit: no anode driven
-                seg <= SEG_BLANK;
-            end
+            an  <= 8'hFF;                      // blank digit: no anode driven
+            seg <= SEG_BLANK;
         end
     end
 
@@ -1226,9 +1229,11 @@ module risc_top (
                            result[1][7:0], 4'h0,
                            result[2][7:0] };
 
+    // Note: the display driver is deliberately NOT reset -- it keeps
+    // scanning while BTNC holds the CPU in reset, so the dashes are
+    // visible for as long as the button is held.
     sevenseg_driver u_disp (
         .clk       (clk),
-        .reset     (reset),
         .digits    (digits),
         .digit_en  (8'b1101_1011),   // digits 5 and 2 are blank separators
         .show_dash (~done),          // dashes until the program halts
@@ -1622,6 +1627,26 @@ and no comments, and the memory's initial block is nothing but the
 covers every address). Simulation, synthesis, and my checking script all
 agree on that one file, and the human-readable annotated listing lives in
 Section 2 and Section 7.7 of this report instead of in the file.
+
+### 10.7 The dash mode was unobservable — reset scope was too broad
+
+During the board demo I held BTNC expecting to photograph the dash pattern
+and instead got a completely dark display with LED0 off. The logic was
+doing exactly what I wrote, which was not what I meant: I had wired the
+synchronized reset to *every* module in the top level, including the
+7-segment scan driver. With the driver in reset, all eight anodes are
+deasserted, so "machine in reset" and "display blank" were the same thing —
+and since the program finishes about 44 µs after the button is released,
+the dashes-while-running window is far too short to see. The dash mode I
+had built was real but unobservable. The fix was to narrow the reset to the
+things that actually need one: the CPU core, the clock-enable divider, and
+the result-capture registers keep it, while the display driver free-runs —
+its outputs are a pure function of the scan counter and its current inputs,
+so there is no state in it worth resetting (the scan counter gets an
+initial value for simulation; on the FPGA the global set/reset net provides
+the same power-up state). Now holding BTNC shows `-- -- --` with LED0 off,
+and releasing it snaps to `3C E1 FF` — a much better demo, and a good
+reminder that "reset everything" is a habit, not a requirement.
 
 ## 10. Conclusion
 

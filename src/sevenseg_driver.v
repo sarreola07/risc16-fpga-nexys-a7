@@ -8,6 +8,14 @@
 // a per-digit blanking mask (digit_en) and a dash mode used while the CPU
 // is still running. Anodes and cathodes are both active low on the Nexys A7.
 //
+// The driver deliberately has NO reset: its outputs are a pure function of
+// the free-running scan counter and the current inputs, so the display keeps
+// scanning -- showing dashes -- while the CPU is held in reset by BTNC. My
+// first version reset the driver along with the CPU, which blanked the whole
+// display during reset and made the dash mode unobservable (see "Problems
+// encountered"). Registers carry initial values for simulation; on the FPGA
+// the GSR provides the same power-up state.
+//
 // Scan rate: the digit select comes from bits [19:17] of a free-running
 // counter at 100 MHz, so each digit is lit for 2^17 * 10 ns = 1.31 ms and
 // the full 8-digit frame refreshes at ~95 Hz -- fast enough not to flicker,
@@ -18,7 +26,6 @@
 //-----------------------------------------------------------------------------
 module sevenseg_driver (
     input  wire        clk,        // 100 MHz board clock
-    input  wire        reset,      // synchronous, active high
     input  wire [31:0] digits,     // 8 hex nibbles, digit 7 = digits[31:28]
     input  wire [7:0]  digit_en,   // 1 = display this digit, 0 = blank
     input  wire        show_dash,  // 1 = enabled digits show '-'
@@ -29,14 +36,10 @@ module sevenseg_driver (
 
     assign dp = 1'b1;              // decimal point never used
 
-    // ---- scan counter -----------------------------------------------------
-    reg [19:0] scan_cnt;
-    always @(posedge clk) begin
-        if (reset)
-            scan_cnt <= 20'd0;
-        else
-            scan_cnt <= scan_cnt + 20'd1;
-    end
+    // ---- scan counter (free-running, never reset) --------------------------
+    reg [19:0] scan_cnt = 20'd0;
+    always @(posedge clk)
+        scan_cnt <= scan_cnt + 20'd1;
 
     wire [2:0] digit_sel = scan_cnt[19:17];
 
@@ -82,18 +85,18 @@ module sevenseg_driver (
     localparam [6:0] SEG_BLANK = 7'b1111111;
 
     // ---- registered outputs (anode and cathode switch together) -----------
+    initial begin
+        an  = 8'hFF;
+        seg = SEG_BLANK;
+    end
+
     always @(posedge clk) begin
-        if (reset) begin
-            an  <= 8'hFF;
-            seg <= SEG_BLANK;
+        if (digit_en[digit_sel]) begin
+            an  <= ~(8'd1 << digit_sel);
+            seg <= show_dash ? SEG_DASH : hex_seg;
         end else begin
-            if (digit_en[digit_sel]) begin
-                an  <= ~(8'd1 << digit_sel);
-                seg <= show_dash ? SEG_DASH : hex_seg;
-            end else begin
-                an  <= 8'hFF;                  // blank digit: no anode driven
-                seg <= SEG_BLANK;
-            end
+            an  <= 8'hFF;                      // blank digit: no anode driven
+            seg <= SEG_BLANK;
         end
     end
 

@@ -34,6 +34,7 @@ Expected results: `mem[203] = 60 (0x3C)`, `mem[204] = 225 (0xE1)`,
 ## On the board
 
 - Program the board, press **BTNC** to reset.
-- The 7-segment display shows dashes while the program runs (a few
-  microseconds), then `3C  E1  FF` — mem[203], mem[204], mem[205] in hex.
+- **Hold BTNC** to keep the CPU in reset: the display shows dashes
+  (`-- -- --`) and LED0 is off. Release it and the program re-runs
+  (~44 µs), leaving `3C  E1  FF` — mem[203], mem[204], mem[205] in hex.
 - **LED0** lights when the HALT instruction is reached.
